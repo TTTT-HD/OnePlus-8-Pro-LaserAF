@@ -21,4 +21,16 @@
         android:textStyle="bold"
         android:fontFamily="monospace" />
 
+    <Button
+        android:id="@+id/smoothingButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="32dp"
+        android:text="Smoothing: OFF"
+        android:textAllCaps="false"
+        android:backgroundTint="#333333"
+        android:textColor="#FFFFFF" />
+
 </RelativeLayout>

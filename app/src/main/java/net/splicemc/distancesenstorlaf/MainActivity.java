@@ -18,20 +18,25 @@ import android.os.HandlerThread;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
+import android.widget.Button;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "DistanceSensor";
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
+    private static final int MAX_VALID_DISTANCE = 8190;
+    private static final int SMOOTHING_WINDOW_SIZE = 10;
     
     private TextView statusTextView;
+    private Button smoothingButton;
     private TextureView textureView;
     private CameraDevice cameraDevice;
     private CameraCaptureSession captureSession;
@@ -40,12 +45,24 @@ public class MainActivity extends AppCompatActivity {
     private HandlerThread backgroundThread;
     private Handler backgroundHandler;
 
+    private boolean isSmoothingEnabled = false;
+    private final ArrayList<Integer> distanceHistory = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         statusTextView = findViewById(R.id.statusTextView);
+        smoothingButton = findViewById(R.id.smoothingButton);
         textureView = findViewById(R.id.textureView);
+
+        smoothingButton.setOnClickListener(v -> {
+            isSmoothingEnabled = !isSmoothingEnabled;
+            smoothingButton.setText(isSmoothingEnabled ? "Smoothing: ON" : "Smoothing: OFF");
+            synchronized (distanceHistory) {
+                distanceHistory.clear();
+            }
+        });
 
         if (checkCameraPermission()) {
             startBackgroundThread();
@@ -189,7 +206,7 @@ public class MainActivity extends AppCompatActivity {
     private void processCaptureResult(TotalCaptureResult result) {
         // Search for vendor tags in the result
         List<CaptureResult.Key<?>> keys = result.getKeys();
-        Integer laserDistance = null;
+        Integer rawDistance = null;
         
         for (CaptureResult.Key<?> key : keys) {
             if (key.getName().equals("com.oneplus.camera2.metadata.TOF_Value")) {
@@ -197,19 +214,43 @@ public class MainActivity extends AppCompatActivity {
                 if (value instanceof int[]) {
                     int[] vals = (int[]) value;
                     if (vals.length > 0) {
-                        laserDistance = vals[0];
+                        rawDistance = vals[0];
                     }
                 } else if (value instanceof Integer) {
-                    laserDistance = (Integer) value;
+                    rawDistance = (Integer) value;
                 }
                 break;
             }
         }
 
-        final Integer finalDistance = laserDistance;
+        final Integer displayDistance;
+        if (rawDistance != null && rawDistance <= MAX_VALID_DISTANCE) {
+            if (isSmoothingEnabled) {
+                synchronized (distanceHistory) {
+                    distanceHistory.add(rawDistance);
+                    if (distanceHistory.size() > SMOOTHING_WINDOW_SIZE) {
+                        distanceHistory.remove(0);
+                    }
+                    int sum = 0;
+                    for (int d : distanceHistory) sum += d;
+                    displayDistance = sum / distanceHistory.size();
+                }
+            } else {
+                displayDistance = rawDistance;
+            }
+        } else if (rawDistance != null && rawDistance > MAX_VALID_DISTANCE) {
+            displayDistance = -1; // Out of range
+        } else {
+            displayDistance = null;
+        }
+
         runOnUiThread(() -> {
-            if (finalDistance != null) {
-                statusTextView.setText(String.format("Distance: %d mm", finalDistance));
+            if (displayDistance != null) {
+                if (displayDistance == -1) {
+                    statusTextView.setText("Distance: Out of Range");
+                } else {
+                    statusTextView.setText(String.format("Distance: %d mm", displayDistance));
+                }
             } else {
                 statusTextView.setText("Distance: Scanning...");
             }
