@@ -34,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
     private static final int MAX_VALID_DISTANCE = 8190;
     private static final int SMOOTHING_WINDOW_SIZE = 10;
+    private static final long OUT_OF_RANGE_DELAY_MS = 300;
     
     private TextView statusTextView;
     private Button smoothingButton;
@@ -47,6 +48,9 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isSmoothingEnabled = false;
     private final ArrayList<Integer> distanceHistory = new ArrayList<>();
+    
+    private long lastValidTimestamp = 0;
+    private Integer lastValidDistance = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -224,7 +228,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         final Integer displayDistance;
+        long currentTime = System.currentTimeMillis();
+
         if (rawDistance != null && rawDistance <= MAX_VALID_DISTANCE) {
+            lastValidTimestamp = currentTime;
             if (isSmoothingEnabled) {
                 synchronized (distanceHistory) {
                     distanceHistory.add(rawDistance);
@@ -233,15 +240,20 @@ public class MainActivity extends AppCompatActivity {
                     }
                     int sum = 0;
                     for (int d : distanceHistory) sum += d;
-                    displayDistance = sum / distanceHistory.size();
+                    lastValidDistance = sum / distanceHistory.size();
                 }
             } else {
-                displayDistance = rawDistance;
+                lastValidDistance = rawDistance;
             }
-        } else if (rawDistance != null && rawDistance > MAX_VALID_DISTANCE) {
-            displayDistance = -1; // Out of range
+            displayDistance = lastValidDistance;
         } else {
-            displayDistance = null;
+            // Raw distance is null or > MAX_VALID_DISTANCE
+            if (currentTime - lastValidTimestamp < OUT_OF_RANGE_DELAY_MS) {
+                // Use last valid value during delay to prevent flickering
+                displayDistance = lastValidDistance;
+            } else {
+                displayDistance = -1; // Out of range for real
+            }
         }
 
         runOnUiThread(() -> {
