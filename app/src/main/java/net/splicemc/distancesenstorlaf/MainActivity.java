@@ -270,12 +270,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onPause() {
-        super.onPause();
-        if (cameraDevice != null) {
-            cameraDevice.close();
-            cameraDevice = null;
+    protected void onResume() {
+        super.onResume();
+        startBackgroundThread();
+        if (textureView.isAvailable()) {
+            openCamera();
+        } else {
+            textureView.setSurfaceTextureListener(textureListener);
         }
+    }
+
+    @Override
+    protected void onPause() {
+        closeCamera();
         stopBackgroundThread();
+        super.onPause();
+    }
+
+    private void closeCamera() {
+        try {
+            if (captureSession != null) {
+                captureSession.close();
+                captureSession = null;
+            }
+            if (cameraDevice != null) {
+                cameraDevice.close();
+                cameraDevice = null;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error closing camera", e);
+        }
     }
 }
