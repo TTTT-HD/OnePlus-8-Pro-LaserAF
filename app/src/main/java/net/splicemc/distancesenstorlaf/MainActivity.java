@@ -34,7 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
     private static final int MAX_VALID_DISTANCE = 8190;
     private static final int SMOOTHING_WINDOW_SIZE = 10;
-    private static final long OUT_OF_RANGE_DELAY_MS = 300;
+    private static final long OUT_OF_RANGE_DELAY_MS = 1000;
     
     private TextView statusTextView;
     private Button smoothingButton;
